@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRunState } from '@/lib/queue';
+import { getRunState, syncPhase } from '@/lib/queue';
 import { matchEvidence } from '@/lib/evidence';
 import { buildSummary } from '@/lib/summary';
 import {
@@ -48,7 +48,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       const judgeJob = judgeJobs.find(
         (jj) => jj.extractionJobId === attempt.jobId && jj.extractionAttemptNumber === attempt.attempt
       );
-      const assessment = assessments[attempt.jobId] ?? null;
+      const assessmentKey = `${attempt.jobId}__${attempt.attempt}`;
+      const assessment = assessments[assessmentKey] ?? null;
 
       let judgeStatus: ScoreStatus = 'not_started';
       if (!attempt.jsonParseValid) judgeStatus = 'json_invalid';
@@ -75,6 +76,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         },
       };
     });
+
+    // Fire-and-forget sync to recover stale judge jobs during polling
+    syncPhase(id).catch(console.error);
 
     return NextResponse.json({
       manifest,

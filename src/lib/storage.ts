@@ -437,7 +437,7 @@ export async function readAutomaticAssessments(
       pathnames = files
         .filter(f => f.endsWith('.json'))
         // Windows backslash to forward slash normalization
-        .map(f => `assessments/${f.replace(/\\\\/g, '/')}`);
+        .map(f => `assessments/${f.replace(/\\/g, '/')}`);
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
     }
@@ -448,18 +448,19 @@ export async function readAutomaticAssessments(
     pathnames = fullPathnames.map(p => p.startsWith(experimentPrefix) ? p.slice(experimentPrefix.length) : p);
   }
 
-  const allAssessments: Array<{ extractionJobId: string; attemptNumber: number; key: string; assessment: AutomaticAssessment }> = [];
+  const allAssessments: Array<{ extractionJobId: string; attemptNumber: number; judgeJobId: string; key: string; assessment: AutomaticAssessment }> = [];
 
   const loads = pathnames.map(async (filename) => {
     try {
       const assessment = await readJson<AutomaticAssessment>(experimentId, filename);
       const relative = filename.replace('assessments/', '').replace('.json', '');
-      const parts = relative.split('/');
+      const parts = relative.split(/[\\/]/);
       if (parts.length >= 4) {
         const extractionJobId = parts[1]!;
         const attemptNumber = parseInt(parts[2]!, 10);
+        const judgeJobId = parts[3]!;
         const legacyKey = `${extractionJobId}__${attemptNumber}`;
-        allAssessments.push({ extractionJobId, attemptNumber, key: legacyKey, assessment });
+        allAssessments.push({ extractionJobId, attemptNumber, judgeJobId, key: legacyKey, assessment });
       }
     } catch (e) {
       console.error(`Failed to read assessment ${filename}`, e);
@@ -483,13 +484,13 @@ export async function readAutomaticAssessments(
       if (item.attemptNumber > maxAttempt) maxAttempt = item.attemptNumber;
     }
     // Keep only the highest attempt
-    for (const item of items) {
-      if (item.attemptNumber === maxAttempt) {
-        result[item.key] = item.assessment;
-        // In the case of duplicate judge jobs for the *same* extraction attempt,
-        // the last one loaded will overwrite others in the result map,
-        // which matches the previous map behaviour but avoids the write conflict.
-      }
+    const highestAttemptItems = items.filter(item => item.attemptNumber === maxAttempt);
+    // Sort deterministically by judgeJobId (first alphabetically wins)
+    highestAttemptItems.sort((a, b) => a.judgeJobId.localeCompare(b.judgeJobId));
+
+    if (highestAttemptItems.length > 0) {
+      const winner = highestAttemptItems[0]!;
+      result[winner.key] = winner.assessment;
     }
   }
 

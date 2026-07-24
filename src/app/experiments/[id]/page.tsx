@@ -343,7 +343,19 @@ function AutomaticScorePanel({ detail, onFlagAudit }: { detail: AttemptDetail; o
   const assessment = detail.automaticAssessment;
 
   if (!assessment) {
-    return <div className="score-panel"><div className="empty-state">No automatic assessment available. {detail.judge.status === 'judge_failed' ? 'The AI judge failed to score this output.' : 'Scoring may be in progress or the extraction failed.'}</div></div>;
+    if (detail.judge.status === 'queued') {
+      return <div className="score-panel"><div className="empty-state">Automatic assessment queued.</div></div>;
+    }
+    if (detail.judge.status === 'judging') {
+      return <div className="score-panel"><div className="empty-state">Automatic assessment is being generated.</div></div>;
+    }
+    if (detail.judge.status === 'judge_failed') {
+      return <div className="score-panel"><div className="empty-state">Automatic assessment failed.</div></div>;
+    }
+    if (detail.judge.status === 'scored') {
+      return <div className="score-panel"><div className="empty-state error">Integrity Error: Judge succeeded but assessment is missing.</div></div>;
+    }
+    return <div className="score-panel"><div className="empty-state">No automatic assessment available.</div></div>;
   }
 
   const handleFlag = async () => {

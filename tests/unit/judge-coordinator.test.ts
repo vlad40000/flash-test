@@ -34,12 +34,12 @@ describe('Judge Coordinator', () => {
 
   it('should idempotently transition extraction_complete into judge jobs', async () => {
     const { createJudgeJobs, startJudgeRun } = await import('@/lib/judge-queue');
-    await syncPhase('exp-123');
+    await syncPhase('exp-20260724-12345678');
     expect(createJudgeJobs).toHaveBeenCalledTimes(1);
     expect(startJudgeRun).toHaveBeenCalledTimes(1);
 
     // Call again, should not create judge jobs again
-    await syncPhase('exp-123');
+    await syncPhase('exp-20260724-12345678');
     expect(createJudgeJobs).toHaveBeenCalledTimes(1);
     expect(startJudgeRun).toHaveBeenCalledTimes(2);
   });
@@ -50,7 +50,7 @@ describe('Judge Coordinator', () => {
     const sixMinutesAgo = new Date(Date.now() - 6 * 60 * 1000).toISOString();
     judgeJobsState = [{ id: 'judge_1', status: 'running', startedAt: sixMinutesAgo }];
 
-    await syncPhase('exp-123');
+    await syncPhase('exp-20260724-12345678');
 
     expect(judgeJobsState[0].status).toBe('queued');
     expect(judgeJobsState[0].startedAt).toBeNull();
