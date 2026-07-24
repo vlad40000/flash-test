@@ -2,12 +2,16 @@ import { appendFile, mkdir, readFile, readdir, rename, rm, writeFile } from 'nod
 import path from 'node:path';
 import { del, get, list, put } from '@vercel/blob';
 import {
+  AutomaticAssessment,
+  AuditFlag,
   BenchmarkJob,
   EvidenceRecord,
   ExperimentListItem,
   ExperimentManifest,
   ExperimentSummary,
   JobAttempt,
+  JudgeAttempt,
+  JudgeJob,
   ManualScore,
 } from '@/types';
 
@@ -203,15 +207,23 @@ export async function readSourceImage(experimentId: string, filename: string): P
   return readArtifact(experimentId, filename);
 }
 
+const ALLOWED_TEXT_ARTIFACTS = [
+  'prompt.txt',
+  'system-instruction.txt',
+  'response-schema.json',
+  'judge-system-instruction.txt',
+  'judge-rubric-prompt.txt',
+];
+
 export async function writeTextArtifact(experimentId: string, filename: string, content: string): Promise<void> {
-  if (!['prompt.txt', 'system-instruction.txt', 'response-schema.json'].includes(filename)) {
+  if (!ALLOWED_TEXT_ARTIFACTS.includes(filename)) {
     throw new Error('unsupported artifact filename');
   }
   await writeArtifact(experimentId, filename, content);
 }
 
 export async function readTextArtifact(experimentId: string, filename: string): Promise<string> {
-  if (!['prompt.txt', 'system-instruction.txt', 'response-schema.json'].includes(filename)) {
+  if (!ALLOWED_TEXT_ARTIFACTS.includes(filename)) {
     throw new Error('unsupported artifact filename');
   }
   return (await readArtifact(experimentId, filename)).toString('utf8');
@@ -340,4 +352,99 @@ export async function deleteExperiment(experimentId: string): Promise<void> {
 
   const pathnames = await listAllBlobPathnames(`${blobExperimentPrefix(experimentId)}/`);
   if (pathnames.length > 0) await del(pathnames);
+}
+
+// ── Judge jobs ────────────────────────────────────────────────────────────────
+
+export async function writeJudgeJobs(experimentId: string, judgeJobs: JudgeJob[]): Promise<void> {
+  await writeJson(experimentId, 'judge-jobs.json', judgeJobs);
+}
+
+export async function readJudgeJobs(experimentId: string): Promise<JudgeJob[]> {
+  if (!(await artifactExists(experimentId, 'judge-jobs.json'))) return [];
+  return readJson<JudgeJob[]>(experimentId, 'judge-jobs.json');
+}
+
+export async function updateJudgeJob(
+  experimentId: string,
+  judgeJobId: string,
+  patch: Partial<Pick<JudgeJob, 'status' | 'startedAt' | 'completedAt'>>
+): Promise<void> {
+  await enqueueWrite(`${experimentId}:judge-jobs.json`, async () => {
+    const jobs = await readJudgeJobs(experimentId);
+    const index = jobs.findIndex((j) => j.id === judgeJobId);
+    if (index === -1) throw new Error(`judge job not found: ${judgeJobId}`);
+    jobs[index] = { ...jobs[index]!, ...patch };
+    await writeArtifact(experimentId, 'judge-jobs.json', JSON.stringify(jobs, null, 2));
+  });
+}
+
+// ── Judge attempts ────────────────────────────────────────────────────────────
+
+export async function appendJudgeAttempt(experimentId: string, attempt: JudgeAttempt): Promise<void> {
+  const filename = 'judge-attempts.jsonl';
+  await enqueueWrite(`${experimentId}:${filename}`, async () => {
+    if (storageMode() === 'filesystem') {
+      const filePath = path.join(localExperimentDir(experimentId), filename);
+      await ensureLocalDir(path.dirname(filePath));
+      await appendFile(filePath, `${JSON.stringify(attempt)}\n`, 'utf8');
+      return;
+    }
+    const existing = (await artifactExists(experimentId, filename))
+      ? (await readArtifact(experimentId, filename)).toString('utf8')
+      : '';
+    await writeArtifact(experimentId, filename, `${existing}${JSON.stringify(attempt)}\n`);
+  });
+}
+
+export async function readJudgeAttempts(experimentId: string): Promise<JudgeAttempt[]> {
+  if (!(await artifactExists(experimentId, 'judge-attempts.jsonl'))) return [];
+  const raw = (await readArtifact(experimentId, 'judge-attempts.jsonl')).toString('utf8');
+  return raw
+    .split('\n')
+    .filter((line) => line.trim().length > 0)
+    .map((line) => JSON.parse(line) as JudgeAttempt);
+}
+
+// ── Automatic assessments ─────────────────────────────────────────────────────
+
+export async function writeAutomaticAssessments(
+  experimentId: string,
+  assessments: Record<string, AutomaticAssessment>
+): Promise<void> {
+  await writeJson(experimentId, 'automatic-assessments.json', assessments);
+}
+
+export async function readAutomaticAssessments(
+  experimentId: string
+): Promise<Record<string, AutomaticAssessment>> {
+  if (!(await artifactExists(experimentId, 'automatic-assessments.json'))) return {};
+  return readJson<Record<string, AutomaticAssessment>>(experimentId, 'automatic-assessments.json');
+}
+
+// ── Audit flags ───────────────────────────────────────────────────────────────
+
+export async function writeAuditFlag(experimentId: string, flag: AuditFlag): Promise<void> {
+  const filename = 'audit-flags.jsonl';
+  await enqueueWrite(`${experimentId}:${filename}`, async () => {
+    if (storageMode() === 'filesystem') {
+      const filePath = path.join(localExperimentDir(experimentId), filename);
+      await ensureLocalDir(path.dirname(filePath));
+      await appendFile(filePath, `${JSON.stringify(flag)}\n`, 'utf8');
+      return;
+    }
+    const existing = (await artifactExists(experimentId, filename))
+      ? (await readArtifact(experimentId, filename)).toString('utf8')
+      : '';
+    await writeArtifact(experimentId, filename, `${existing}${JSON.stringify(flag)}\n`);
+  });
+}
+
+export async function readAuditFlags(experimentId: string): Promise<AuditFlag[]> {
+  if (!(await artifactExists(experimentId, 'audit-flags.jsonl'))) return [];
+  const raw = (await readArtifact(experimentId, 'audit-flags.jsonl')).toString('utf8');
+  return raw
+    .split('\n')
+    .filter((line) => line.trim().length > 0)
+    .map((line) => JSON.parse(line) as AuditFlag);
 }

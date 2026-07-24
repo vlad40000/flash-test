@@ -45,6 +45,7 @@ vi.mock('@/lib/storage', () => ({
   readScores: async () => [],
   writeSummary: async () => {},
   writeRawResponse: async () => {},
+  readAutomaticAssessments: async () => ({}),
 }));
 
 vi.mock('@/lib/gemini-client', () => ({
@@ -63,6 +64,13 @@ vi.mock('@/lib/gemini-client', () => ({
       providerErrorCode: null, providerErrorMessage: null, retryAfterSeconds: null,
     };
   }),
+}));
+
+vi.mock('@/lib/judge-queue', () => ({
+  createJudgeJobs: async () => [],
+  startJudgeRun: async () => {},
+  isRetryable: () => false,
+  computeBackoffMs: () => 0,
 }));
 
 describe('startRun concurrency', () => {

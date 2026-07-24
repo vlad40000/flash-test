@@ -4,8 +4,10 @@ import { toCsv, toJson, toJsonl } from '@/lib/export';
 import { buildSummary } from '@/lib/summary';
 import {
   readAttempts,
+  readAutomaticAssessments,
   readEvidence,
   readJobs,
+  readJudgeJobs,
   readManifest,
   readScores,
   readTextArtifact,
@@ -17,7 +19,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params;
   const format = req.nextUrl.searchParams.get('format') ?? 'json';
   try {
-    const [manifest, jobs, attempts, scores, evidenceAll, prompt, systemInstruction, schemaText] = await Promise.all([
+    const [manifest, jobs, attempts, scores, evidenceAll, prompt, systemInstruction, schemaText, judgeJobs, assessments] = await Promise.all([
       readManifest(id),
       readJobs(id),
       readAttempts(id),
@@ -26,6 +28,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       readTextArtifact(id, 'prompt.txt'),
       readTextArtifact(id, 'system-instruction.txt'),
       readTextArtifact(id, 'response-schema.json'),
+      readJudgeJobs(id),
+      readAutomaticAssessments(id),
     ]);
     const evidence = matchEvidence(evidenceAll, manifest.image.originalFilename, manifest.evidenceReviews ?? {});
     const bundle = {
@@ -34,7 +38,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       attempts,
       scores,
       evidence,
-      summary: buildSummary(jobs, attempts, scores, evidence[0] ?? null),
+      judgeJobs,
+      assessments,
+      summary: buildSummary(jobs, attempts, scores, evidence[0] ?? null, assessments),
       artifacts: { prompt, systemInstruction, responseSchema: JSON.parse(schemaText) },
     };
 

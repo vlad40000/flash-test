@@ -4,9 +4,10 @@ import Link from 'next/link';
 import { use, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   MODELS,
-  SCORING_CATEGORIES,
   TEMPERATURES,
   THINKING_LEVELS,
+  type AttemptDetail,
+  type AutomaticAssessment,
   type BenchmarkJob,
   type BenchmarkModel,
   type BenchmarkTemperature,
@@ -15,17 +16,20 @@ import {
   type ExperimentSummary,
   type JobAttempt,
   type JobStatus,
-  type ManualScore,
+  type JudgeJob,
+  type ScoreStatus,
   type ThinkingLevel,
 } from '@/types';
-import { finalAttemptMap, manualScoreTotal } from '@/lib/summary';
+import { finalAttemptMap } from '@/lib/summary';
 
 interface ExperimentData {
   manifest: ExperimentManifest;
   jobs: BenchmarkJob[];
   attempts: JobAttempt[];
+  attemptDetails: AttemptDetail[];
   evidence: EvidenceRecord[];
-  scores: ManualScore[];
+  assessments: Record<string, AutomaticAssessment>;
+  judgeJobs: JudgeJob[];
   summary: ExperimentSummary;
   runtime: { running: boolean; paused: boolean; stopRequested: boolean; activeWorkers: number } | null;
 }
@@ -84,8 +88,8 @@ export default function ExperimentRunPage({ params }: { params: Promise<{ id: st
     [data?.attempts, selectedJobId]
   );
   const selectedFinalAttempt = selectedAttempts[0] ?? null;
-  const selectedScore = selectedFinalAttempt
-    ? data?.scores.find((score) => score.jobId === selectedFinalAttempt.jobId && score.attempt === selectedFinalAttempt.attempt) ?? null
+  const selectedAttemptDetail = selectedFinalAttempt
+    ? data?.attemptDetails.find((d) => d.jobId === selectedFinalAttempt.jobId && d.attemptNumber === selectedFinalAttempt.attempt) ?? null
     : null;
 
   const filteredJobs = useMemo(() => {
@@ -124,15 +128,8 @@ export default function ExperimentRunPage({ params }: { params: Promise<{ id: st
     }
   }
 
-  async function saveScore(score: ManualScore) {
-    setActionError(null);
-    const response = await fetch(`/api/experiments/${id}/scores`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(score),
-    });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error ?? 'Failed to save score');
-    setActionMessage('Manual score saved.');
-    await refresh();
+  async function flagAudit(jobId: string, attemptNumber: number, notes: string) {
+    await action(`attempts/${jobId}/audit-flag`, { attemptNumber, notes });
   }
 
   async function reviewEvidence(filename: string, decision: 'approved' | 'needs_revision' | 'rejected') {
@@ -283,7 +280,7 @@ export default function ExperimentRunPage({ params }: { params: Promise<{ id: st
               {attempt.usage != null && <details><summary>Usage metadata</summary><pre>{JSON.stringify(attempt.usage, null, 2)}</pre></details>}
             </article>
           ))}
-          {selectedFinalAttempt && <ScoreEditor key={`${selectedFinalAttempt.jobId}-${selectedFinalAttempt.attempt}-${selectedScore?.updatedAt ?? 'new'}`} attempt={selectedFinalAttempt} existing={selectedScore} onSave={saveScore} />}
+          {selectedAttemptDetail && <AutomaticScorePanel detail={selectedAttemptDetail} onFlagAudit={(notes) => flagAudit(selectedJob.id, selectedAttemptDetail.attemptNumber, notes)} />}
         </section>
       )}
 
@@ -314,7 +311,8 @@ function AggregateCell({ aggregate }: { aggregate: ExperimentSummary['aggregates
   const schemaLabel = aggregate.completedTrials === 0
     ? 'Pending'
     : `${Math.round(aggregate.schemaValidRate * 100)}% schema`;
-  return <div className="aggregate-cell"><strong>{schemaLabel}</strong><span>{aggregate.averageManualScore == null ? 'Not scored' : `${aggregate.averageManualScore}/100`}</span><small>{aggregate.averageLatencyMs == null ? 'No latency' : `${(aggregate.averageLatencyMs / 1000).toFixed(1)}s avg`} · {aggregate.providerSucceeded}/{aggregate.completedTrials} completed · {aggregate.totalTrials} planned</small></div>;
+  const scoreLabel = aggregate.meanScore == null ? 'Not scored' : `${aggregate.meanScore}/100`;
+  return <div className="aggregate-cell"><strong>{schemaLabel}</strong><span>{scoreLabel}</span><small>{aggregate.averageLatencyMs == null ? 'No latency' : `${(aggregate.averageLatencyMs / 1000).toFixed(1)}s avg`} · {aggregate.providerSucceeded}/{aggregate.completedTrials} completed · {aggregate.totalTrials} planned</small></div>;
 }
 
 function FilterSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: readonly string[] }) {
@@ -329,21 +327,61 @@ function ValidationBadge({ job, attempt }: { job: BenchmarkJob; attempt?: JobAtt
   return <span className="validation-badge good">schema valid</span>;
 }
 
-function ScoreEditor({ attempt, existing, onSave }: { attempt: JobAttempt; existing: ManualScore | null; onSave: (score: ManualScore) => Promise<void> }) {
-  const [scores, setScores] = useState<ManualScore['scores']>(existing?.scores ?? {});
-  const [notes, setNotes] = useState(existing?.notes ?? '');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const total = manualScoreTotal({ jobId: attempt.jobId, attempt: attempt.attempt, scores, notes, updatedAt: '' });
+function AutomaticScorePanel({ detail, onFlagAudit }: { detail: AttemptDetail; onFlagAudit: (notes: string) => Promise<void> }) {
+  const [flagNotes, setFlagNotes] = useState('');
+  const [flagging, setFlagging] = useState(false);
 
-  async function submit() {
-    setSaving(true); setError(null);
-    try { await onSave({ jobId: attempt.jobId, attempt: attempt.attempt, scores, notes, updatedAt: new Date().toISOString() }); }
-    catch (caught) { setError(caught instanceof Error ? caught.message : 'Failed to save score'); }
-    finally { setSaving(false); }
+  const assessment = detail.automaticAssessment;
+
+  if (!assessment) {
+    return <div className="score-panel"><div className="empty-state">No automatic assessment available. {detail.judge.status === 'judge_failed' ? 'The AI judge failed to score this output.' : 'Scoring may be in progress or the extraction failed.'}</div></div>;
   }
 
-  return <div className="score-panel"><div className="score-heading"><div><h3>Fixed 100-point review</h3><span>Score each defect once under its primary category.</span></div><strong>{total == null ? 'Incomplete' : `${total}/100`}</strong></div><div className="score-grid">{SCORING_CATEGORIES.map((category) => <label key={category.key}><span>{category.label}<small> / {category.max}</small></span><input type="number" min={0} max={category.max} step={1} value={scores[category.key] ?? ''} onChange={(event) => setScores({ ...scores, [category.key]: event.target.value === '' ? undefined : Number(event.target.value) })} /></label>)}</div><label className="field-label">Review notes<textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Specific defects, evidence references, and uncertainty notes…" /></label>{error && <div className="alert error">{error}</div>}<button className="primary-action compact-button" disabled={saving} onClick={() => void submit()}>{saving ? 'Saving…' : 'Save review'}</button></div>;
+  const handleFlag = async () => {
+    setFlagging(true);
+    try { await onFlagAudit(flagNotes); setFlagNotes(''); }
+    finally { setFlagging(false); }
+  };
+
+  return (
+    <div className="score-panel">
+      <div className="score-heading">
+        <div>
+          <h3>Automatic assessment</h3>
+          <span>Status: <strong>{assessment.scoreStatus}</strong> · Ranked: <strong>{assessment.eligibleForRanking ? 'Yes' : 'No'}</strong></span>
+        </div>
+        <strong>{assessment.totalScore == null ? 'Ineligible' : `${assessment.totalScore}/100`}</strong>
+      </div>
+      <div className="score-grid read-only">
+        {Object.entries(assessment.categoryScores).map(([category, value]) => (
+          <div className="score-row" key={category}>
+            <span>{category}</span>
+            <strong>{value == null ? '—' : value}</strong>
+          </div>
+        ))}
+      </div>
+      {assessment.defects.length > 0 && (
+        <div className="defects-list">
+          <h4>Deductions ({assessment.defects.length})</h4>
+          <ul>
+            {assessment.defects.map((d, i) => (
+              <li key={i}>
+                <span className={`severity-badge ${d.severity}`}>{d.severity}</span>
+                <strong>[-{d.deduction}] {d.defectCode}</strong> ({d.category})
+                <p>{d.explanation}</p>
+                <small>Source: {d.source}</small>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <div className="audit-section">
+        <h4>Flag for human audit</h4>
+        <textarea placeholder="Reason for flagging this assessment..." value={flagNotes} onChange={(e) => setFlagNotes(e.target.value)} disabled={flagging} />
+        <button className="secondary-button" disabled={!flagNotes.trim() || flagging} onClick={handleFlag}>{flagging ? 'Flagging...' : 'Submit Audit Flag'}</button>
+      </div>
+    </div>
+  );
 }
 
 function EvidenceBlock({ title, value }: { title: string; value: unknown }) {

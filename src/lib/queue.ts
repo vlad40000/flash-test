@@ -2,6 +2,7 @@ import { BenchmarkJob, CONCURRENCY, ExperimentManifest, JobAttempt } from '@/typ
 import {
   appendAttempt,
   readAttempts,
+  readAutomaticAssessments,
   readEvidence,
   readJobs,
   readManifest,
@@ -15,6 +16,7 @@ import {
 } from './storage';
 import { matchEvidence } from './evidence';
 import { callThemeExtraction } from './gemini-client';
+import { createJudgeJobs, startJudgeRun } from './judge-queue';
 import { computeBackoffMs, isRetryable, MAX_RETRY_ATTEMPTS } from './retry';
 import { validateOutput } from './validate-output';
 import { buildSummary } from './summary';
@@ -89,12 +91,13 @@ async function executeRun(experimentId: string): Promise<void> {
   const remaining = jobs.some((job) => job.status === 'queued');
   if (!remaining) {
     manifest.status = jobs.every((job) => job.status === 'succeeded' || job.status === 'failed')
-      ? 'completed'
+      ? 'extraction_complete'
       : manifest.status;
     await writeManifest(manifest);
     const evidenceAll = await readEvidence(experimentId);
     const evidence = matchEvidence(evidenceAll, manifest.image.originalFilename, manifest.evidenceReviews ?? {});
-    await writeSummary(experimentId, buildSummary(jobs, priorAttempts, await readScores(experimentId), evidence[0] ?? null));
+    const assessments = await readAutomaticAssessments(experimentId);
+    await writeSummary(experimentId, buildSummary(jobs, priorAttempts, await readScores(experimentId), evidence[0] ?? null, assessments));
     return;
   }
 
@@ -136,7 +139,7 @@ async function executeRun(experimentId: string): Promise<void> {
     } else if (state.paused) {
       manifest.status = 'paused';
     } else if (state.jobs.every((job) => job.status === 'succeeded' || job.status === 'failed')) {
-      manifest.status = 'completed';
+      manifest.status = 'extraction_complete';
     } else {
       manifest.status = 'paused';
     }
@@ -150,7 +153,23 @@ async function executeRun(experimentId: string): Promise<void> {
     await writeManifest(manifest);
     const [attempts, scores, evidenceAll] = await Promise.all([readAttempts(experimentId), readScores(experimentId), readEvidence(experimentId)]);
     const evidence = matchEvidence(evidenceAll, manifest.image.originalFilename, manifest.evidenceReviews ?? {});
-    await writeSummary(experimentId, buildSummary(state.jobs, attempts, scores, evidence[0] ?? null));
+    const assessments = await readAutomaticAssessments(experimentId);
+    await writeSummary(experimentId, buildSummary(state.jobs, attempts, scores, evidence[0] ?? null, assessments));
+
+    // If extraction completed (not stopped or paused), automatically start judge phase.
+    if (manifest.status === 'extraction_complete') {
+      // Build finalAttemptMap for judge job creation
+      const finalAttemptMap = new Map<string, import('@/types').JobAttempt>();
+      for (const attempt of attempts) {
+        const existing = finalAttemptMap.get(attempt.jobId);
+        if (!existing || attempt.attempt > existing.attempt) {
+          finalAttemptMap.set(attempt.jobId, attempt);
+        }
+      }
+      await createJudgeJobs(experimentId, finalAttemptMap);
+      // Non-blocking: judge phase runs independently
+      void startJudgeRun(experimentId);
+    }
   }
 }
 

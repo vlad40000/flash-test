@@ -1,5 +1,4 @@
-import { BenchmarkJob, EvidenceRecord, ExperimentManifest, ExperimentSummary, JobAttempt, ManualScore } from '@/types';
-import { manualScoreTotal } from './summary';
+import { AutomaticAssessment, BenchmarkJob, EvidenceRecord, ExperimentManifest, ExperimentSummary, JobAttempt, JudgeJob, ManualScore } from '@/types';
 
 export interface ExportBundle {
   manifest: ExperimentManifest;
@@ -7,6 +6,8 @@ export interface ExportBundle {
   attempts: JobAttempt[];
   scores: ManualScore[];
   evidence: EvidenceRecord[];
+  judgeJobs: JudgeJob[];
+  assessments: Record<string, AutomaticAssessment>;
   summary: ExperimentSummary;
   artifacts: {
     prompt: string;
@@ -19,14 +20,15 @@ export function toJson(bundle: ExportBundle): string {
   return JSON.stringify(bundle, null, 2);
 }
 
-/** One JSON object per line, one line per attempt, with its locked job and manual review. */
 export function toJsonl(bundle: ExportBundle): string {
   const scores = new Map(bundle.scores.map((score) => [`${score.jobId}__${score.attempt}`, score]));
   return bundle.attempts
     .map((attempt) => {
       const job = bundle.jobs.find((item) => item.id === attempt.jobId);
       const score = scores.get(`${attempt.jobId}__${attempt.attempt}`) ?? null;
-      return JSON.stringify({ experimentId: bundle.manifest.experimentId, job, attempt, score });
+      const judgeJob = bundle.judgeJobs?.find((jj) => jj.extractionJobId === attempt.jobId && jj.extractionAttemptNumber === attempt.attempt) ?? null;
+      const assessment = bundle.assessments?.[attempt.jobId] ?? null;
+      return JSON.stringify({ experimentId: bundle.manifest.experimentId, job, attempt, score, judgeJob, assessment });
     })
     .join('\n');
 }
@@ -47,8 +49,9 @@ const CSV_COLUMNS = [
   'jsonParseValid',
   'schemaValid',
   'schemaIssuesCount',
-  'manualScoreTotal',
-  'reviewNotes',
+  'scoreStatus',
+  'automaticScore',
+  'eligibleForRanking',
 ] as const;
 
 function csvEscape(value: unknown): string {
@@ -57,11 +60,15 @@ function csvEscape(value: unknown): string {
 }
 
 export function toCsv(bundle: ExportBundle): string {
-  const scoreMap = new Map(bundle.scores.map((score) => [`${score.jobId}__${score.attempt}`, score]));
   const rows: string[] = [CSV_COLUMNS.join(',')];
   for (const attempt of bundle.attempts) {
     const job = bundle.jobs.find((item) => item.id === attempt.jobId);
-    const score = scoreMap.get(`${attempt.jobId}__${attempt.attempt}`);
+    const assessment = bundle.assessments?.[attempt.jobId];
+
+    let scoreStatus = 'not_started';
+    if (!attempt.jsonParseValid) scoreStatus = 'json_invalid';
+    else if (!attempt.schemaValid) scoreStatus = 'schema_invalid';
+    else if (assessment?.scoreStatus) scoreStatus = assessment.scoreStatus;
     const row = [
       attempt.jobId,
       job?.model ?? '',
@@ -78,8 +85,9 @@ export function toCsv(bundle: ExportBundle): string {
       attempt.jsonParseValid,
       attempt.schemaValid,
       attempt.schemaIssues.length,
-      manualScoreTotal(score),
-      score?.notes ?? '',
+      scoreStatus,
+      assessment?.totalScore ?? '',
+      assessment?.eligibleForRanking ?? false,
     ];
     rows.push(row.map(csvEscape).join(','));
   }
