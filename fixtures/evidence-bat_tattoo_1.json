@@ -1,0 +1,80 @@
+{
+  "image": "bat__tattoo_1.png",
+  "verified_by": "pixel analysis (PIL), 2026-07-24",
+  "facts": {
+    "background_treatment": {
+      "required": "transparent-canvas",
+      "evidence": "RGBA PNG 1186x1536; 43.1% fully transparent; all 4 corners alpha=0",
+      "severity_if_wrong": "major"
+    },
+    "gradient_policy": {
+      "forbidden": ["none"],
+      "expected": ["minimal"],
+      "evidence": "smooth pink-to-red ear gradients confirmed in strip sample",
+      "severity_if_forbidden": "major"
+    },
+    "interior_weight": {
+      "forbidden": ["none"],
+      "evidence": "ear lines, eye rings, tooth separations plainly present",
+      "severity_if_forbidden": "major"
+    },
+    "geometry_bias": {
+      "expected": ["mixed"],
+      "defensible": ["mixed"],
+      "evidence": "organic jagged contour + circles/rings/ovals/diamond",
+      "severity_if_other": "moderate"
+    },
+    "density": {
+      "expected": ["moderate"],
+      "defensible": ["moderate", "high"],
+      "evidence": "concentric eyes x2, ~9 ear lines/ear, brow arcs, tri-lobe nose, diamond, 4 fangs + ~10 teeth, tongue, ~30 perimeter spikes",
+      "severity_if_other": "moderate"
+    },
+    "edge_treatment": {
+      "expected": ["hard"],
+      "evidence": "partial alpha only 3.3% — hard edges",
+      "severity_if_other": "minor"
+    },
+    "color_mode": {
+      "required": "full-color",
+      "severity_if_wrong": "major"
+    },
+    "colors_must_include": {
+      "terms": ["black", "red", "pink"],
+      "match": "substring, case-insensitive",
+      "evidence": "opaque distribution: black 66.2%, red 12.2%, pink/light-red 6.1%, white 4.6%, blue 2.6%, orange 0.1%",
+      "severity_per_missing": "minor",
+      "note": "pink (6.1%) exceeds orange (0.1%); omitting pink while listing orange is the canonical palette error"
+    },
+    "black_density_range": {
+      "acceptable_words": ["heavy", "dominant", "high", "very heavy", "two-thirds", "60", "65", "70"],
+      "forbidden_numeric_below": 55,
+      "forbidden_numeric_above": 75,
+      "evidence": "black = 66.2% of opaque area; 54.7% of canvas",
+      "severity_if_wrong": "minor"
+    },
+    "visible_hand_characteristics": {
+      "expected": "[X]",
+      "evidence": "no wobble, uneven fill, notch, or registration defect visible; clean digital execution",
+      "severity_if_invented": "moderate"
+    },
+    "shading_defensible": {
+      "note": "smooth/minimal is defensible; none/none/n-a is defensible ONLY if gradient_policy is not 'none' (ear fades then attributed to fill). none+gradient_policy:none together = major visible-fact error.",
+      "severity": "moderate"
+    }
+  },
+  "quarantine_inventory": {
+    "note": "canonical source-specific inventory; completeness scored as fraction covered",
+    "items": [
+      "bat", "pointed ears", "spiky fur / jagged fur", "fangs", "teeth",
+      "red tongue", "red mouth contour", "tri-lobe blue nose", "blue diamond forehead mark",
+      "concentric eye rings (red outer, orange inner)", "black pupils",
+      "white brow arcs", "inner-ear line markings", "pink-to-red inner ears",
+      "whisker-like lateral projections", "front-facing pose", "open mouth"
+    ],
+    "unsupported_concepts": ["halloween", "nocturnal", "spooky", "demonic", "gothic"],
+    "defensible_concepts": ["vampiric"],
+    "severity_per_unsupported": "moderate",
+    "coverage_thresholds": { "good": 0.6, "weak": 0.35 }
+  }
+}

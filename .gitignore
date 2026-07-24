@@ -1,0 +1,20 @@
+node_modules/
+.next/
+out/
+dist/
+*.log
+npm-debug.log*
+*.tsbuildinfo
+
+# env
+.env
+.env.local
+.env.*.local
+
+# run storage (locally persisted experiment data)
+data/runs/*
+!data/runs/.gitkeep
+
+# editor/OS
+.DS_Store
+Thumbs.db

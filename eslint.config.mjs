@@ -1,0 +1,20 @@
+import { FlatCompat } from '@eslint/eslintrc';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const compat = new FlatCompat({ baseDirectory: __dirname });
+
+const config = [
+  ...compat.extends('next/core-web-vitals'),
+  {
+    ignores: ['data/**', '.next/**', 'node_modules/**'],
+    rules: {
+      '@next/next/no-img-element': 'off',
+    },
+  },
+];
+
+export default config;

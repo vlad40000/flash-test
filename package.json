@@ -1,0 +1,40 @@
+{
+  "name": "flash-theme-benchmark",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Standalone FLASH-1 Theme Extraction benchmark app with durable Vercel persistence.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:live": "RUN_LIVE_GEMINI_TESTS=1 vitest run tests/live",
+    "verify": "npm run audit:contract && npm run audit:storage && npm run typecheck && npm run lint && npm test && npm run build",
+    "audit:contract": "node scripts/verify-contract.mjs",
+    "audit:storage": "node scripts/verify-storage-contract.mjs"
+  },
+  "dependencies": {
+    "@google/genai": "2.13.0",
+    "@vercel/blob": "2.6.1",
+    "ajv": "8.17.1",
+    "next": "15.1.12",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "zod": "3.24.1"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.6",
+    "@types/node": "22.10.5",
+    "@types/react": "19.0.7",
+    "@types/react-dom": "19.0.3",
+    "@typescript-eslint/eslint-plugin": "8.19.1",
+    "@typescript-eslint/parser": "8.19.1",
+    "eslint": "9.18.0",
+    "eslint-config-next": "15.1.12",
+    "typescript": "5.7.3",
+    "vitest": "2.1.8"
+  }
+}

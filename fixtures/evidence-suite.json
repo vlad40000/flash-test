@@ -1,0 +1,159 @@
+{
+  "suite_version": "1.0",
+  "note": "Facts under 'pixel' are machine-verified (PIL). Facts under 'visual' are authored from direct image inspection and flagged for owner sign-off. Severity conventions match evidence-bat_tattoo_1.json.",
+  "images": [
+    {
+      "file": "DOnt_warty_be_happy_shirt.png",
+      "role": "text-in-design + transparent full-color cartoon",
+      "pixel": {
+        "background_treatment": "transparent-canvas (RGBA, 49.8% transparent, corners alpha=0)",
+        "color_mode": "full-color",
+        "colors_must_include": ["green", "yellow", "black"],
+        "palette_note": "green 34.8%, black 30.2%, yellow 23.7% of opaque"
+      },
+      "visual": {
+        "style_family_defensible": ["cartoon", "illustrative"],
+        "gradient_policy": "none-or-minimal (flat fills, subtle belly tone)",
+        "density": "minimal-to-moderate",
+        "quarantine_must_capture": ["frog", "arched lettering DON'T WARTY BE HAPPY", "wart spots", "smiling open mouth", "pun concept"],
+        "discrimination_target": "symbols_and_text quarantine of full lettering; pun as source_specific_concept; letterforms must NOT leak into style prose"
+      }
+    },
+    {
+      "file": "ChatGPT_Image_Dec_5__2025__07_06_39_AM.png",
+      "role": "NONSTANDARD CANVAS — the [X] background case",
+      "pixel": {
+        "background_treatment": "[X] REQUIRED — solid tan/cream fill (247,216,182), no alpha; prompt: 'nonstandard canvas (solid colored fill) maps to [X]'",
+        "color_mode": "full-color",
+        "colors_must_include": ["red", "orange", "blue", "black"]
+      },
+      "visual": {
+        "style_family_defensible": ["traditional", "neo-traditional"],
+        "gradient_policy": "smooth (claw and body fades are prominent)",
+        "shading": "smooth / moderate",
+        "quarantine_must_capture": ["crawfish/lobster", "raised claws", "motion swish marks", "antennae"],
+        "discrimination_target": "THE key test: any model answering white-canvas or neutral-flat-canvas instead of [X] fails the explicit prompt rule. Also crawfish-vs-lobster ID discipline."
+      }
+    },
+    {
+      "file": "amer_trad_snake_1.webp",
+      "role": "black-and-grey + WATERMARK contamination",
+      "pixel": {
+        "background_treatment": "white-canvas (RGB white corners, no alpha)",
+        "color_mode_defensible": ["black-and-grey"],
+        "palette_note": "white 76.3%, black 15.4%, grey 5.9%, faint beige ray lines 2.5%",
+        "format_note": "WEBP input — harness mimeType must be image/webp"
+      },
+      "visual": {
+        "cross_field_trap": "black-and-grey forces saturation n-a/[X] — models that answer 'muted' violate the zod superRefine",
+        "quarantine_must_capture": ["snake", "open fangs", "forked tongue", "segmented belly scales", "radiating sunburst rays"],
+        "watermark": "ghost text watermark center-right; correct handling: ignore or quarantine under symbols_and_text; treating it as design lettering is a defect",
+        "discrimination_target": "b&g saturation cross-field rule + watermark discipline"
+      }
+    },
+    {
+      "file": "IMG_1661.jpeg",
+      "role": "monochrome-vs-limited-color judgment (coral snake, red+black+white)",
+      "pixel": {
+        "background_treatment": "white-canvas (JPEG, white corners)",
+        "palette_note": "white 86.2%, black 6.2%, red 5.2%"
+      },
+      "visual": {
+        "color_mode_defensible": ["full-color"],
+        "color_mode_note": "red+black+white banding = limited full-color, NOT monochrome (two chromatic-relevant hues) and NOT black-and-grey (real red). Models choosing monochrome are testing the exact enum-judgment axis; treat monochrome as moderate defect, black-and-grey as major.",
+        "breadth": "limited",
+        "style_family_defensible": ["traditional"],
+        "shading": "minimal — flat bands with sparse black head shading",
+        "quarantine_must_capture": ["coral-banded snake", "coiled S-body", "open mouth fangs", "forked tongue", "red-black-white band pattern"],
+        "discrimination_target": "color_mode boundary judgment"
+      }
+    },
+    {
+      "file": "ohaat-02__2_.png",
+      "role": "CORE-1A candidate — character with prop inventory (also FLASH quarantine stress)",
+      "pixel": {
+        "background_treatment": "transparent-canvas (RGBA, 68.5% transparent)",
+        "color_mode": "full-color",
+        "colors_must_include": ["green", "brown", "black"]
+      },
+      "visual": {
+        "style_family_defensible": ["cartoon", "animation"],
+        "quarantine_must_capture": ["bearded long-haired man", "green coveralls", "shotgun on back", "bandolier of shells", "bear-paw prosthetic hand with claws", "holstered knife", "combat boots", "forearm scars"],
+        "discrimination_target": "quarantine COMPLETENESS at high object count; clothing vs props categorization; the prosthetic paw is the identity-feature keystone"
+      }
+    },
+    {
+      "file": "artlock-image-1784561134385.png",
+      "role": "stipple texture + ANNOTATION-TEXT contamination",
+      "pixel": {
+        "background_treatment": "white-canvas leaning (255,253,245 corners, JPEG in PNG-named file — mimeType is image/jpeg)",
+        "color_mode": "full-color",
+        "colors_must_include": ["orange", "black"]
+      },
+      "visual": {
+        "texture": "stipple texture genuinely present (mushrooms, eyeball) — the ONE image where 'stipple texture' is correct rather than hallucinated",
+        "annotation_trap": "caption 'Grappling/wrestling hold' top-left is workflow annotation, NOT design lettering; correct: exclude or [X]-note, never style/theme content",
+        "quarantine_must_capture": ["punk platypus", "mohawk", "sunglasses", "spiked collar", "chain belt", "cracked eyeball with tongue", "spotted mushrooms growing from eyeball"],
+        "discrimination_target": "texture enum accuracy + annotation-vs-design text discipline"
+      }
+    },
+    {
+      "file": "Generated_Image_May_07__2026_-_2_19PM.jpg",
+      "role": "MULTI-MOTIF FLASH SHEET — the actual product shape (linework, shading none)",
+      "pixel": {
+        "background_treatment_defensible": ["neutral-flat-canvas", "[X]"],
+        "background_note": "uniform warm off-white (241,235,223) — closer to neutral-flat than white; white-canvas is a minor defect, not major",
+        "color_mode_defensible": ["black-and-grey", "monochrome"],
+        "palette_note": "linework on cream; black 9.9%"
+      },
+      "visual": {
+        "shading_trap": "pure linework — method none / coverage none / contrast n-a is CORRECT here; this is the inverse of the bat trap and catches judges or models that reflexively answer smooth/minimal",
+        "quarantine_must_capture": ["lettering CORSAIRS OF UMBAR", "corsair ship with star sail", "skull in helmet on ship's wheel", "dark fortress silhouette", "anchor with crossed swords", "eye banner flag", "compass rose", "cutlasses", "oars", "rocks and waves"],
+        "ip_note": "Tolkien-derived motifs (Umbar) — territory must abstract to e.g. 'dark-fantasy nautical piracy' without naming the franchise place",
+        "discrimination_target": "multi-motif sheet handling; shading-none correctness; lettering quarantine; IP abstraction in territory"
+      }
+    },
+    {
+      "file": "Gemini_Generated_Image_zc8t6uzc8t6uzc8t.png",
+      "role": "fine line + dotwork on paper-toned canvas",
+      "pixel": {
+        "background_treatment_defensible": ["neutral-flat-canvas", "[X]"],
+        "background_note": "textured warm paper tone (239,227,204), RGBA but 0% transparent",
+        "color_mode_defensible": ["black-and-grey", "monochrome"]
+      },
+      "visual": {
+        "style_family_defensible": ["fine line", "dotwork", "illustrative"],
+        "texture": "paper grain plausibly correct here — the one image where 'paper grain' is defensible",
+        "quarantine_must_capture": ["lettering Moria", "hatched mountain range", "leaping trout bitten in half", "sword with flowers", "dotwork spots"],
+        "discrimination_target": "fine-line/dotwork family discrimination the saturated images never test; paper-grain texture enum"
+      }
+    },
+    {
+      "file": "1000057219.png",
+      "role": "DEGRADED CAPTURE — photo of a screen showing the Moria flash",
+      "pixel": {
+        "background_note": "dark bezel corners (18,18,25), grey 89.2% — this is a photographed display, vignette and blur present",
+        "partial_alpha": "0.72%"
+      },
+      "visual": {
+        "expectation": "heavy [X] usage is the CORRECT behavior: texture, hand characteristics, edge treatment are unreliable through screen capture; models asserting crisp digital facts from this input are inventing",
+        "setting_trap": "the screen/bezel is capture context, not design setting — must not enter quarantine.setting as design content",
+        "discrimination_target": "uncertainty discipline under degraded input; separates models that know what they cannot see"
+      }
+    }
+  ],
+  "recommended_core_suite": [
+    "bat__tattoo_1.png (saturated graphic, transparent, gradient trap)",
+    "ChatGPT_Image_Dec_5__2025__07_06_39_AM.png (nonstandard canvas → [X])",
+    "IMG_1661.jpeg (color_mode boundary)",
+    "Generated_Image_May_07__2026_-_2_19PM.jpg (flash sheet, shading-none, IP abstraction)",
+    "artlock-image-1784561134385.png (real stipple, annotation trap)",
+    "1000057219.png (degraded capture, [X] discipline)"
+  ],
+  "held_as_secondary": [
+    "DOnt_warty_be_happy_shirt.png (lettering; overlaps flash-sheet lettering test)",
+    "amer_trad_snake_1.webp (b&g cross-field; watermark; webp mime)",
+    "ohaat-02__2_.png (better suited to CORE-1A identity-lock testing than FLASH-1)",
+    "Gemini_Generated_Image_zc8t6uzc8t6uzc8t.png (near-duplicate of degraded-capture source; use as its clean twin if testing capture robustness)"
+  ]
+}
