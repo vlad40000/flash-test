@@ -241,6 +241,7 @@ export default function ExperimentRunPage({ params }: { params: Promise<{ id: st
             <tbody>
               {filteredJobs.map((job) => {
                 const attempt = finalAttempts.get(job.id);
+                const attemptDetail = attempt ? data?.attemptDetails.find(d => d.jobId === attempt.jobId && d.attemptNumber === attempt.attempt) : undefined;
                 const retryable = retryableIds.has(job.id);
                 return (
                   <tr key={job.id} className={selectedJobId === job.id ? 'selected-row' : ''}>
@@ -324,14 +325,14 @@ function ValidationBadge({ job, attempt, detail }: { job: BenchmarkJob; attempt?
   if (!attempt) return <span className="validation-badge neutral">pending</span>;
   if (!attempt.jsonParseValid) return <span className="validation-badge warn">JSON invalid</span>;
   if (!attempt.schemaValid) return <span className="validation-badge warn">schema invalid</span>;
-  
+
   if (detail?.judge) {
     if (detail.judge.status === 'queued') return <span className="validation-badge neutral">queued</span>;
     if (detail.judge.status === 'judging') return <span className="validation-badge neutral">judging</span>;
     if (detail.judge.status === 'judge_failed') return <span className="validation-badge bad">judge failed</span>;
     if (detail.judge.status === 'scored') return <span className="validation-badge good">scored</span>;
   }
-  
+
   return <span className="validation-badge good">schema valid</span>;
 }
 
@@ -357,11 +358,11 @@ function AutomaticScorePanel({ detail, onFlagAudit }: { detail: AttemptDetail; o
         <div>
           <h3>Automatic assessment</h3>
           <span>Status: <strong>{assessment.scoreStatus}</strong> · Ranked: <strong>{assessment.eligibleForRanking ? 'Yes' : 'No'}</strong></span>
-          {detail.judge?.judgeAttempt?.latencyMs != null && (
-            <span style={{ marginLeft: '1rem' }}>Judge Latency: <strong>{detail.judge.judgeAttempt.latencyMs}ms</strong></span>
+          {detail.judge?.attempts?.[0]?.latencyMs != null && (
+            <span style={{ marginLeft: '1rem' }}>Judge Latency: <strong>{detail.judge.attempts[0].latencyMs}ms</strong></span>
           )}
-          {detail.judge?.judgeAttempt?.usage && (
-            <span style={{ marginLeft: '1rem' }}>Judge Tokens: <strong>{(detail.judge.judgeAttempt.usage as any).totalTokens ?? '—'}</strong></span>
+          {!!detail.judge?.attempts?.[0]?.usage && (
+            <span style={{ marginLeft: '1rem' }}>Judge Tokens: <strong>{String((detail.judge.attempts[0].usage as any).totalTokens ?? '—')}</strong></span>
           )}
         </div>
         <strong>{assessment.totalScore == null ? 'Ineligible' : `${assessment.totalScore}/100`}</strong>
@@ -411,5 +412,5 @@ function toggleSet(current: Set<string>, value: string, enabled: boolean): Set<s
 
 function isAttemptRetryable(attempt: JobAttempt | undefined): boolean {
   if (!attempt) return false;
-  return [429, 500, 502, 503, 504].includes(attempt.providerStatus ?? -1) || ['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'EPIPE', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_SOCKET', 'network_interruption', 'connection_reset', 'request_timeout'].includes(attempt.providerErrorCode ?? '');
+  return [429, 500, 502, 503, 504].includes(attempt.providerStatus || -1) || ['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'EPIPE', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_SOCKET', 'network_interruption', 'connection_reset', 'request_timeout'].includes(attempt.providerErrorCode || '');
 }

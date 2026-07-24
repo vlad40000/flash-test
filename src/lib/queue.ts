@@ -11,6 +11,7 @@ import {
   readSourceImage,
   readTextArtifact,
   writeJobs,
+  writeJudgeJobs,
   writeManifest,
   writeRawResponse,
   writeSummary,
@@ -163,12 +164,10 @@ async function executeRun(experimentId: string): Promise<void> {
 
 export async function syncPhase(experimentId: string): Promise<void> {
   const manifest = await readManifest(experimentId);
-  
+
   if (manifest.status === 'extraction_complete' || manifest.status === 'scoring') {
-    if (isJudgeRunActive(experimentId)) return;
-    
     const jobs = await readJobs(experimentId);
-    const judgeJobs = await readJudgeJobs(experimentId);
+    let judgeJobs = await readJudgeJobs(experimentId);
     const attempts = await readAttempts(experimentId);
 
     if (judgeJobs.length === 0 && jobs.length > 0) {
@@ -180,9 +179,29 @@ export async function syncPhase(experimentId: string): Promise<void> {
         }
       }
       await createJudgeJobs(experimentId, finalAttemptMap);
+      judgeJobs = await readJudgeJobs(experimentId);
     }
-    
-    await startJudgeRun(experimentId);
+
+    // Check for stale judging jobs (5 minutes timeout)
+    const now = Date.now();
+    let hasStale = false;
+    for (const j of judgeJobs) {
+      if (j.status === 'running' && j.startedAt) {
+        const started = new Date(j.startedAt).getTime();
+        if (now - started > 5 * 60 * 1000) {
+          j.status = 'queued';
+          j.startedAt = null;
+          hasStale = true;
+        }
+      }
+    }
+    if (hasStale) {
+      await writeJudgeJobs(experimentId, judgeJobs);
+    }
+
+    if (!isJudgeRunActive(experimentId)) {
+      await startJudgeRun(experimentId);
+    }
   }
 }
 

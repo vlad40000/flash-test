@@ -421,41 +421,78 @@ export async function writeAutomaticAssessment(
   key: string,
   assessment: AutomaticAssessment
 ): Promise<void> {
+  // key is expected to be `${extractionJobId}/${extractionAttemptNumber}/${judgeJobId}`
   await writeJson(experimentId, `assessments/${key}.json`, assessment);
 }
 
 export async function readAutomaticAssessments(
   experimentId: string
 ): Promise<Record<string, AutomaticAssessment>> {
-  const result: Record<string, AutomaticAssessment> = {};
   let pathnames: string[] = [];
 
   if (storageMode() === 'filesystem') {
     const dir = path.join(localExperimentDir(experimentId), 'assessments');
     try {
-      const files = await readdir(dir);
-      pathnames = files.filter(f => f.endsWith('.json')).map(f => `assessments/${f}`);
+      const files = await readdir(dir, { recursive: true });
+      pathnames = files
+        .filter(f => f.endsWith('.json'))
+        // Windows backslash to forward slash normalization
+        .map(f => `assessments/${f.replace(/\\\\/g, '/')}`);
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
     }
   } else {
-    const prefix = `${blobExperimentPrefix(experimentId)}/assessments/`;
+    const prefix = `${blobExperimentPrefix(experimentId)}/assessments/${experimentId}/`;
     const fullPathnames = await listAllBlobPathnames(prefix);
     const experimentPrefix = `${blobExperimentPrefix(experimentId)}/`;
     pathnames = fullPathnames.map(p => p.startsWith(experimentPrefix) ? p.slice(experimentPrefix.length) : p);
   }
 
+  const allAssessments: Array<{ extractionJobId: string; attemptNumber: number; key: string; assessment: AutomaticAssessment }> = [];
+
   const loads = pathnames.map(async (filename) => {
     try {
       const assessment = await readJson<AutomaticAssessment>(experimentId, filename);
-      const key = filename.replace('assessments/', '').replace('.json', '');
-      result[key] = assessment;
+      const relative = filename.replace('assessments/', '').replace('.json', '');
+      const parts = relative.split('/');
+      if (parts.length >= 4) {
+        const extractionJobId = parts[1]!;
+        const attemptNumber = parseInt(parts[2]!, 10);
+        const legacyKey = `${extractionJobId}__${attemptNumber}`;
+        allAssessments.push({ extractionJobId, attemptNumber, key: legacyKey, assessment });
+      }
     } catch (e) {
       console.error(`Failed to read assessment ${filename}`, e);
     }
   });
 
   await Promise.all(loads);
+
+  // Group by extractionJobId to filter out stale attempts
+  const byJob = new Map<string, typeof allAssessments>();
+  for (const item of allAssessments) {
+    if (!byJob.has(item.extractionJobId)) byJob.set(item.extractionJobId, []);
+    byJob.get(item.extractionJobId)!.push(item);
+  }
+
+  const result: Record<string, AutomaticAssessment> = {};
+  for (const [jobId, items] of byJob.entries()) {
+    // Find highest extraction attempt number for this job
+    let maxAttempt = 0;
+    for (const item of items) {
+      if (item.attemptNumber > maxAttempt) maxAttempt = item.attemptNumber;
+    }
+    // Keep only the highest attempt
+    for (const item of items) {
+      if (item.attemptNumber === maxAttempt) {
+        result[item.key] = item.assessment;
+        // In the case of duplicate judge jobs for the *same* extraction attempt,
+        // the last one loaded will overwrite others in the result map,
+        // which matches the previous map behaviour but avoids the write conflict.
+      }
+    }
+  }
+
   return result;
 }
 

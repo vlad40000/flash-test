@@ -234,7 +234,7 @@ async function runOneJudgeJob(input: RunOneInput): Promise<boolean> {
         judgeJobId: job.id,
       });
 
-      const assessmentKey = `${job.extractionJobId}__${job.extractionAttemptNumber}`;
+      const assessmentKey = `${experimentId}/${job.extractionJobId}/${job.extractionAttemptNumber}/${job.id}`;
       await writeAutomaticAssessment(experimentId, assessmentKey, assessment);
 
       await updateJudgeJob(experimentId, job.id, {
