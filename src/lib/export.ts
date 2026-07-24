@@ -27,7 +27,7 @@ export function toJsonl(bundle: ExportBundle): string {
       const job = bundle.jobs.find((item) => item.id === attempt.jobId);
       const score = scores.get(`${attempt.jobId}__${attempt.attempt}`) ?? null;
       const judgeJob = bundle.judgeJobs?.find((jj) => jj.extractionJobId === attempt.jobId && jj.extractionAttemptNumber === attempt.attempt) ?? null;
-      const assessment = bundle.assessments?.[attempt.jobId] ?? null;
+      const assessment = bundle.assessments?.[`${attempt.jobId}__${attempt.attempt}`] ?? null;
       return JSON.stringify({ experimentId: bundle.manifest.experimentId, job, attempt, score, judgeJob, assessment });
     })
     .join('\n');
@@ -63,7 +63,7 @@ export function toCsv(bundle: ExportBundle): string {
   const rows: string[] = [CSV_COLUMNS.join(',')];
   for (const attempt of bundle.attempts) {
     const job = bundle.jobs.find((item) => item.id === attempt.jobId);
-    const assessment = bundle.assessments?.[attempt.jobId];
+    const assessment = bundle.assessments?.[`${attempt.jobId}__${attempt.attempt}`];
 
     let scoreStatus = 'not_started';
     if (!attempt.jsonParseValid) scoreStatus = 'json_invalid';

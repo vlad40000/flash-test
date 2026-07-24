@@ -157,7 +157,9 @@ async function writeJson(experimentId: string, filename: string, value: unknown)
 }
 
 async function readJson<T>(experimentId: string, filename: string): Promise<T> {
-  return JSON.parse((await readArtifact(experimentId, filename)).toString('utf8')) as T;
+  const buffer = await readArtifact(experimentId, filename);
+  const text = new TextDecoder('utf-8').decode(buffer);
+  return JSON.parse(text) as T;
 }
 
 async function listAllBlobPathnames(prefix: string): Promise<string[]> {
@@ -226,7 +228,8 @@ export async function readTextArtifact(experimentId: string, filename: string): 
   if (!ALLOWED_TEXT_ARTIFACTS.includes(filename)) {
     throw new Error('unsupported artifact filename');
   }
-  return (await readArtifact(experimentId, filename)).toString('utf8');
+  const buffer = await readArtifact(experimentId, filename);
+  return new TextDecoder('utf-8').decode(buffer);
 }
 
 export async function writeJobs(experimentId: string, jobs: BenchmarkJob[]): Promise<void> {
@@ -268,6 +271,11 @@ export async function writeRawResponse(experimentId: string, jobId: string, atte
     throw new Error('invalid response identity');
   }
   await writeArtifact(experimentId, `responses/${jobId}__attempt-${attempt}.txt`, text);
+}
+
+export async function readRawResponse(experimentId: string, jobId: string, attempt: number): Promise<string> {
+  const buffer = await readArtifact(experimentId, `responses/${jobId}__attempt-${attempt}.txt`);
+  return new TextDecoder('utf-8').decode(buffer);
 }
 
 export async function writeEvidence(experimentId: string, records: EvidenceRecord[]): Promise<void> {
@@ -399,7 +407,7 @@ export async function appendJudgeAttempt(experimentId: string, attempt: JudgeAtt
 
 export async function readJudgeAttempts(experimentId: string): Promise<JudgeAttempt[]> {
   if (!(await artifactExists(experimentId, 'judge-attempts.jsonl'))) return [];
-  const raw = (await readArtifact(experimentId, 'judge-attempts.jsonl')).toString('utf8');
+  const raw = new TextDecoder('utf-8').decode(await readArtifact(experimentId, 'judge-attempts.jsonl'));
   return raw
     .split('\n')
     .filter((line) => line.trim().length > 0)
@@ -408,18 +416,47 @@ export async function readJudgeAttempts(experimentId: string): Promise<JudgeAtte
 
 // ── Automatic assessments ─────────────────────────────────────────────────────
 
-export async function writeAutomaticAssessments(
+export async function writeAutomaticAssessment(
   experimentId: string,
-  assessments: Record<string, AutomaticAssessment>
+  key: string,
+  assessment: AutomaticAssessment
 ): Promise<void> {
-  await writeJson(experimentId, 'automatic-assessments.json', assessments);
+  await writeJson(experimentId, `assessments/${key}.json`, assessment);
 }
 
 export async function readAutomaticAssessments(
   experimentId: string
 ): Promise<Record<string, AutomaticAssessment>> {
-  if (!(await artifactExists(experimentId, 'automatic-assessments.json'))) return {};
-  return readJson<Record<string, AutomaticAssessment>>(experimentId, 'automatic-assessments.json');
+  const result: Record<string, AutomaticAssessment> = {};
+  let pathnames: string[] = [];
+
+  if (storageMode() === 'filesystem') {
+    const dir = path.join(localExperimentDir(experimentId), 'assessments');
+    try {
+      const files = await readdir(dir);
+      pathnames = files.filter(f => f.endsWith('.json')).map(f => `assessments/${f}`);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+    }
+  } else {
+    const prefix = `${blobExperimentPrefix(experimentId)}/assessments/`;
+    const fullPathnames = await listAllBlobPathnames(prefix);
+    const experimentPrefix = `${blobExperimentPrefix(experimentId)}/`;
+    pathnames = fullPathnames.map(p => p.startsWith(experimentPrefix) ? p.slice(experimentPrefix.length) : p);
+  }
+
+  const loads = pathnames.map(async (filename) => {
+    try {
+      const assessment = await readJson<AutomaticAssessment>(experimentId, filename);
+      const key = filename.replace('assessments/', '').replace('.json', '');
+      result[key] = assessment;
+    } catch (e) {
+      console.error(`Failed to read assessment ${filename}`, e);
+    }
+  });
+
+  await Promise.all(loads);
+  return result;
 }
 
 // ── Audit flags ───────────────────────────────────────────────────────────────
@@ -442,7 +479,7 @@ export async function writeAuditFlag(experimentId: string, flag: AuditFlag): Pro
 
 export async function readAuditFlags(experimentId: string): Promise<AuditFlag[]> {
   if (!(await artifactExists(experimentId, 'audit-flags.jsonl'))) return [];
-  const raw = (await readArtifact(experimentId, 'audit-flags.jsonl')).toString('utf8');
+  const raw = new TextDecoder('utf-8').decode(await readArtifact(experimentId, 'audit-flags.jsonl'));
   return raw
     .split('\n')
     .filter((line) => line.trim().length > 0)

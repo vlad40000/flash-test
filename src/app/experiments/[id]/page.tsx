@@ -247,7 +247,7 @@ export default function ExperimentRunPage({ params }: { params: Promise<{ id: st
                     <td><input type="checkbox" aria-label={`Retry ${job.id}`} disabled={!retryable} checked={retrySelection.has(job.id)} onChange={(event) => setRetrySelection(toggleSet(retrySelection, job.id, event.target.checked))} /></td>
                     <td className="model-cell">{job.model}</td><td>{job.temperature}</td><td>{job.thinkingLevel}</td><td>{job.trial}</td><td>{job.waveNumber}</td>
                     <td><span className={`status-pill ${job.status}`}>{job.status}</span></td>
-                    <td><ValidationBadge job={job} attempt={attempt} /></td>
+                    <td><ValidationBadge job={job} attempt={attempt} detail={attemptDetail} /></td>
                     <td>{attempt?.latencyMs != null ? `${(attempt.latencyMs / 1000).toFixed(1)}s` : '—'}</td>
                     <td><button className="text-button" onClick={() => setSelectedJobId(job.id)}>Review</button></td>
                   </tr>
@@ -270,7 +270,7 @@ export default function ExperimentRunPage({ params }: { params: Promise<{ id: st
           </div>
           {selectedAttempts.length === 0 ? <div className="empty-state">No attempt has completed for this job.</div> : selectedAttempts.map((attempt) => (
             <article key={attempt.attempt} className="attempt-card">
-              <div className="attempt-header"><div><strong>Attempt {attempt.attempt}</strong><span>{attempt.latencyMs != null ? `${attempt.latencyMs} ms` : 'No latency'} · HTTP {attempt.providerStatus ?? '—'}</span></div><div><ValidationBadge job={selectedJob} attempt={attempt} /></div></div>
+              <div className="attempt-header"><div><strong>Attempt {attempt.attempt}</strong><span>{attempt.latencyMs != null ? `${attempt.latencyMs} ms` : 'No latency'} · HTTP {attempt.providerStatus ?? '—'}</span></div><div><ValidationBadge job={selectedJob} attempt={attempt} detail={selectedAttemptDetail} /></div></div>
               {attempt.providerErrorMessage && <div className="alert error">{attempt.providerErrorCode ? `${attempt.providerErrorCode}: ` : ''}{attempt.providerErrorMessage}</div>}
               {attempt.schemaIssues.length > 0 && <div className="schema-issues"><strong>Validation issues</strong><ul>{attempt.schemaIssues.map((issue, index) => <li key={index}>{issue}</li>)}</ul></div>}
               <div className="response-grid">
@@ -319,11 +319,19 @@ function FilterSelect({ label, value, onChange, options }: { label: string; valu
   return <label><span>{label}</span><select value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => <option key={option} value={option}>{option === 'all' ? 'All' : option}</option>)}</select></label>;
 }
 
-function ValidationBadge({ job, attempt }: { job: BenchmarkJob; attempt?: JobAttempt }) {
+function ValidationBadge({ job, attempt, detail }: { job: BenchmarkJob; attempt?: JobAttempt; detail?: AttemptDetail | null }) {
   if (job.status === 'failed') return <span className="validation-badge bad">provider failed</span>;
   if (!attempt) return <span className="validation-badge neutral">pending</span>;
   if (!attempt.jsonParseValid) return <span className="validation-badge warn">JSON invalid</span>;
   if (!attempt.schemaValid) return <span className="validation-badge warn">schema invalid</span>;
+  
+  if (detail?.judge) {
+    if (detail.judge.status === 'queued') return <span className="validation-badge neutral">queued</span>;
+    if (detail.judge.status === 'judging') return <span className="validation-badge neutral">judging</span>;
+    if (detail.judge.status === 'judge_failed') return <span className="validation-badge bad">judge failed</span>;
+    if (detail.judge.status === 'scored') return <span className="validation-badge good">scored</span>;
+  }
+  
   return <span className="validation-badge good">schema valid</span>;
 }
 
@@ -349,6 +357,12 @@ function AutomaticScorePanel({ detail, onFlagAudit }: { detail: AttemptDetail; o
         <div>
           <h3>Automatic assessment</h3>
           <span>Status: <strong>{assessment.scoreStatus}</strong> · Ranked: <strong>{assessment.eligibleForRanking ? 'Yes' : 'No'}</strong></span>
+          {detail.judge?.judgeAttempt?.latencyMs != null && (
+            <span style={{ marginLeft: '1rem' }}>Judge Latency: <strong>{detail.judge.judgeAttempt.latencyMs}ms</strong></span>
+          )}
+          {detail.judge?.judgeAttempt?.usage && (
+            <span style={{ marginLeft: '1rem' }}>Judge Tokens: <strong>{(detail.judge.judgeAttempt.usage as any).totalTokens ?? '—'}</strong></span>
+          )}
         </div>
         <strong>{assessment.totalScore == null ? 'Ineligible' : `${assessment.totalScore}/100`}</strong>
       </div>
@@ -370,6 +384,9 @@ function AutomaticScorePanel({ detail, onFlagAudit }: { detail: AttemptDetail; o
                 <strong>[-{d.deduction}] {d.defectCode}</strong> ({d.category})
                 <p>{d.explanation}</p>
                 <small>Source: {d.source}</small>
+                {d.imageEvidence && <div className="evidence-media"><img src={d.imageEvidence} alt="Image evidence" /></div>}
+                {d.responseEvidence && <div className="evidence-media response-evidence"><strong>Response evidence:</strong> <pre>{d.responseEvidence}</pre></div>}
+                {d.evidenceReference && <div className="evidence-reference"><strong>Reference:</strong> {d.evidenceReference}</div>}
               </li>
             ))}
           </ul>

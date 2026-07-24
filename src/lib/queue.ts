@@ -5,6 +5,7 @@ import {
   readAutomaticAssessments,
   readEvidence,
   readJobs,
+  readJudgeJobs,
   readManifest,
   readScores,
   readSourceImage,
@@ -16,7 +17,7 @@ import {
 } from './storage';
 import { matchEvidence } from './evidence';
 import { callThemeExtraction } from './gemini-client';
-import { createJudgeJobs, startJudgeRun } from './judge-queue';
+import { createJudgeJobs, isJudgeRunActive, startJudgeRun } from './judge-queue';
 import { computeBackoffMs, isRetryable, MAX_RETRY_ATTEMPTS } from './retry';
 import { validateOutput } from './validate-output';
 import { buildSummary } from './summary';
@@ -156,9 +157,21 @@ async function executeRun(experimentId: string): Promise<void> {
     const assessments = await readAutomaticAssessments(experimentId);
     await writeSummary(experimentId, buildSummary(state.jobs, attempts, scores, evidence[0] ?? null, assessments));
 
-    // If extraction completed (not stopped or paused), automatically start judge phase.
-    if (manifest.status === 'extraction_complete') {
-      // Build finalAttemptMap for judge job creation
+    await syncPhase(experimentId);
+  }
+}
+
+export async function syncPhase(experimentId: string): Promise<void> {
+  const manifest = await readManifest(experimentId);
+  
+  if (manifest.status === 'extraction_complete' || manifest.status === 'scoring') {
+    if (isJudgeRunActive(experimentId)) return;
+    
+    const jobs = await readJobs(experimentId);
+    const judgeJobs = await readJudgeJobs(experimentId);
+    const attempts = await readAttempts(experimentId);
+
+    if (judgeJobs.length === 0 && jobs.length > 0) {
       const finalAttemptMap = new Map<string, import('@/types').JobAttempt>();
       for (const attempt of attempts) {
         const existing = finalAttemptMap.get(attempt.jobId);
@@ -167,9 +180,9 @@ async function executeRun(experimentId: string): Promise<void> {
         }
       }
       await createJudgeJobs(experimentId, finalAttemptMap);
-      // Non-blocking: judge phase runs independently
-      void startJudgeRun(experimentId);
     }
+    
+    await startJudgeRun(experimentId);
   }
 }
 

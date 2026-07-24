@@ -37,6 +37,7 @@ vi.mock('@/lib/storage', () => ({
   readEvidence: async () => [],
   readJobs: async () => jobsState,
   writeJobs: async (_id: string, jobs: BenchmarkJob[]) => { jobsState = jobs; },
+  readJudgeJobs: async () => [],
   writeManifest: async () => {},
   readTextArtifact: async (id: string, name: string) => name === 'response-schema.json' ? '{"type":"object"}' : '{}',
   readSourceImage: async () => Buffer.from([1, 2, 3]),
@@ -69,6 +70,7 @@ vi.mock('@/lib/gemini-client', () => ({
 vi.mock('@/lib/judge-queue', () => ({
   createJudgeJobs: async () => [],
   startJudgeRun: async () => {},
+  isJudgeRunActive: () => false,
   isRetryable: () => false,
   computeBackoffMs: () => 0,
 }));

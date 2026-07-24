@@ -16,7 +16,7 @@ import {
   readSourceImage,
   readTextArtifact,
   updateJudgeJob,
-  writeAutomaticAssessments,
+  writeAutomaticAssessment,
   writeJudgeJobs,
   writeManifest,
   writeSummary,
@@ -234,9 +234,8 @@ async function runOneJudgeJob(input: RunOneInput): Promise<boolean> {
         judgeJobId: job.id,
       });
 
-      const assessments = await readAutomaticAssessments(experimentId);
-      assessments[job.extractionJobId] = assessment;
-      await writeAutomaticAssessments(experimentId, assessments);
+      const assessmentKey = `${job.extractionJobId}__${job.extractionAttemptNumber}`;
+      await writeAutomaticAssessment(experimentId, assessmentKey, assessment);
 
       await updateJudgeJob(experimentId, job.id, {
         status: 'succeeded',
@@ -271,18 +270,17 @@ async function runOneJudgeJob(input: RunOneInput): Promise<boolean> {
     evidence,
   });
 
-  const failedAssessment = mergeAutomaticAssessment({
+  const assessment = mergeAutomaticAssessment({
     deterministicResult: detResult,
     judgeResult: null,
     scoreStatus: 'judge_failed',
     judgeJobId: job.id,
   });
 
-  const assessments = await readAutomaticAssessments(experimentId);
-  assessments[job.extractionJobId] = failedAssessment;
-  await writeAutomaticAssessments(experimentId, assessments);
+  const assessmentKey = `${job.extractionJobId}__${job.extractionAttemptNumber}`;
+  await writeAutomaticAssessment(experimentId, assessmentKey, assessment);
 
-  return true;
+  return true; // failed
 }
 
 // ── Summary rebuild helper ────────────────────────────────────────────────────

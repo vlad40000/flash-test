@@ -165,7 +165,7 @@ export function aggregateByConfig(
       group.latencyCount++;
     }
 
-    const assessment = assessments[job.id];
+    const assessment = assessments[`${job.id}__${attempt.attempt}`];
     if (!assessment) {
       // No assessment yet — count as disqualified if extraction failed/invalid
       if (!attempt.jsonParseValid || !attempt.schemaValid || job.status === 'failed') {

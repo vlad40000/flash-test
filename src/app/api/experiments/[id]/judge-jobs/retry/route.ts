@@ -1,6 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
 import { readJudgeJobs, updateJudgeJob } from '@/lib/storage';
-import { startJudgeRun } from '@/lib/judge-queue';
+import { syncPhase } from '@/lib/queue';
+
+export const maxDuration = 300;
 
 export const runtime = 'nodejs';
 
@@ -28,7 +30,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     if (requeued > 0) {
-      void startJudgeRun(id);
+      after(async () => {
+        try {
+          await syncPhase(id);
+        } catch (error) {
+          console.error(`[flash-theme-benchmark] judge run ${id} failed:`, error instanceof Error ? error.message : String(error));
+        }
+      });
     }
 
     return NextResponse.json({ ok: true, requeued });
